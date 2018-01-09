@@ -12,6 +12,7 @@ import (
 
 type joinContext struct {
 	mu   sync.Mutex
+	wg   sync.WaitGroup
 	ctx1 context.Context
 	ctx2 context.Context
 	done chan struct{}
@@ -30,6 +31,7 @@ type joinContext struct {
 // Value(key) looks for key in parent contexts. First found is returned.
 func Join(ctx1, ctx2 context.Context) (context.Context, context.CancelFunc) {
 	c := &joinContext{ctx1: ctx1, ctx2: ctx2, done: make(chan struct{})}
+	c.wg.Add(1)
 	go c.run()
 	return c, c.cancel
 }
@@ -69,6 +71,7 @@ func (c *joinContext) Value(key interface{}) interface{} {
 }
 
 func (c *joinContext) run() {
+	defer c.wg.Done()
 	var doneCtx context.Context
 	select {
 	case <-c.ctx1.Done():
@@ -99,4 +102,6 @@ func (c *joinContext) cancel() {
 
 	c.mu.Unlock()
 	close(c.done)
+
+	c.wg.Wait()
 }
